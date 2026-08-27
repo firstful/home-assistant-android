@@ -1,0 +1,36 @@
+# Sutliff App Manifest
+# One-line description of the app (used in the Sutliff Apps store catalog)
+description: >
+  Home Assistant Companion for Android — native Kotlin smart home control app.
+  This fork uses runtime-minted Cloudflare Access service tokens for home.ffilt.us
+  (fingerprint unlock required). Fork of the official home-assistant/android repo.
+
+# Category in the store UI
+category: home_automation
+
+# Owner / author
+owner: sutliff
+
+# Public icon (square, 512×512 min)
+icon_url: https://companion.home-assistant.io/images/icon.png
+
+# App name in the store
+display_name: Home Assistant
+
+# Package identifier (matches AndroidManifest package)
+package_name: io.homeassistant.companion.android
+
+# Version scheme
+# (versionName from BuildConfig is used at build time)
+version_strategy: git_tag
+
+# CI build triggers
+build_on:
+  - push_to_branches: [main, master]
+  - tag_pattern: "v*"
+
+# Runtime requirements
+android:
+  min_sdk: 23
+  target_sdk: 37
+  # no special ABI filters — universal APK

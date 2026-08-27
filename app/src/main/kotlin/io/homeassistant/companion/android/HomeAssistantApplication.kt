@@ -123,6 +123,9 @@ open class HomeAssistantApplication : Application() {
             languagesManager.applyCurrentLang()
             nightModeManager.applyCurrentNightMode()
             shortcutManager.migrateLegacyShortcuts()
+
+            // Sutliff: telemetry ping (fire-and-forget, no auth, public endpoint)
+            sendTelemetry(okHttpClient)
         }
 
         configureComposeDiagnosticStackTrace(isDebug = BuildConfig.DEBUG)
@@ -297,7 +300,7 @@ open class HomeAssistantApplication : Application() {
                         IntentFilter().apply {
                             addAction(settingSplit[0])
                             if (settingSplit.size > 1) {
-                                val categories = settingSplit.minus(settingSplit[0])
+                                val categories = settingSplit.minus(settingSplit[0})
                                 categories.forEach { addCategory(it) }
                             }
                         },
@@ -389,6 +392,38 @@ open class HomeAssistantApplication : Application() {
             Timber.d(
                 "Current webview package ${webviewPackage?.packageName} and version ${webviewPackage?.versionName}",
             )
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Sutliff: telemetry
+    // -------------------------------------------------------------------------
+
+    /**
+     * Fires a telemetry ping to telemetry.ffilt.us.
+     * Endpoint is public (no auth), accepts raw string body, 4KB cap, rate-limited.
+     * Silent failure — telemetry never crashes the app.
+     */
+    private suspend fun sendTelemetry(httpClient: OkHttpClient) {
+        try {
+            val payload = "ha-android|${BuildConfig.VERSION_NAME}|${Build.VERSION.RELEASE}|${Build.MODEL}"
+            val body = okhttp3.RequestBody.create(
+                "text/plain".toMediaType(),
+                payload,
+            )
+            val request = okhttp3.Request.Builder()
+                .url("https://telemetry.ffilt.us/")
+                .post(body)
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    Timber.d("Telemetry ping sent")
+                } else {
+                    Timber.w("Telemetry ping failed: ${response.code}")
+                }
+            }
+        } catch (e: Exception) {
+            Timber.d("Telemetry ping exception (non-critical): ${e.message}")
         }
     }
 }

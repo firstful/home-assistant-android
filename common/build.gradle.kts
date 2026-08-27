@@ -73,6 +73,9 @@ dependencies {
     implementation(libs.compose.material3)
     lintChecks(libs.compose.lint.checks)
 
+    // Sutliff: Cloudflare Access runtime token minting
+    implementation(libs.androidx.biometric)
+
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.datasource.okhttp)
     // The play-services-cronet dependency is excluded here because each app flavor provides its own Cronet implementation:
