@@ -26,8 +26,6 @@ env:
 jobs:
   build:
     runs-on: [android]
-    # 3Gi gradle heap is the safe upper limit for the wyse5070 worker
-    # (Reed: protect the 7.6Gi no-swap box — wedge was caused by -Xmx4g)
     container:
       image: cimg/android:2026.07-node
       options: --user root
@@ -38,8 +36,6 @@ jobs:
           fetch-depth: 0
 
       - name: Persist Gradle cache (worker side)
-        # The cimg container is ephemeral; cache lives in the DinD sidecar volume
-        # The runner-keeper pod mounts gradle-cache into /root/.gradle
         run: |
           if [ -d /root/.gradle/caches ]; then
             echo "Gradle cache available ($(du -sh /root/.gradle | cut -f1))"
@@ -50,7 +46,7 @@ jobs:
       - name: Write memory-capped gradle.properties
         # Overwrite the upstream's -Xmx4g with Reed's proven-safe caps
         run: |
-          cat > gradle.properties << 'EOF'
+          cat > gradle.properties << 'GRADLEPROPS'
           # Sutliff: memory-constrained build (wyse5070 has 7.6Gi no-swap)
           # Reed's proven-safe cap: -Xmx3g
           org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC
@@ -72,26 +68,18 @@ jobs:
           # Java toolchain
           org.gradle.java.installations.auto-download=false
           org.gradle.java.installations.auto-detect=true
-          EOF
+          GRADLEPROPS
           echo "=== gradle.properties (Sutliff override) ==="
-          cat gradle.properties | head -20
+          head -20 gradle.properties
 
-      - name: Build APK
-        id: build
+      - name: Build debug APK
         env:
-          # Match the cimg image's preinstalled SDK
           ANDROID_SDK_ROOT: /opt/android-sdk
           ANDROID_HOME: /opt/android-sdk
         run: |
-          BUILD_TYPE=${GITHUB_EVENT_NAME == 'workflow_dispatch' && github.event.inputs.build_type || 'debug'}
-
-          echo "=== Building $BUILD_TYPE APK (gradle heap 3Gi, no daemon) ==="
-
-          # Use bash to capitalize first letter for assemble<BuildType>
-          TASK=$(echo "$BUILD_TYPE" | sed 's/^\(.\)/\U\1/')
-
+          echo "=== Building debug APK (gradle heap 3Gi, no daemon) ==="
           ./gradlew --no-daemon \
-            :app:assemble${TASK} \
+            :app:assembleDebug \
             -Pandroid.useAndroidX=true \
             -Pandroid.enableJetifier=false \
             -x ktlintCheck \
@@ -102,17 +90,14 @@ jobs:
             -x lintAnalyzeRelease \
             -x test \
             -x testDebugUnitTest \
-            -x testReleaseUnitTest \
-            --no-daemon \
             --stacktrace 2>&1 | tail -40
-
           echo "=== APK output ==="
           find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ha-android-${{ github.sha }}-apk
+          name: ha-android-apk
           path: app/build/outputs/apk/**/*.apk
           retention-days: 14
           if-no-files-found: error
