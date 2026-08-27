@@ -66,7 +66,11 @@ jobs:
           # Match the runner image's preinstalled SDK
           android.sdk.channel=0
           # Java toolchain
-          org.gradle.java.installations.auto-download=false
+          # cimg/android:2026.07-node ships JDK 21 + 17, but the project pins
+          # sourceCompatibility = 11. The Gradle toolchain auto-installer
+          # downloads JDK 11 once and caches it (works even with flaky egress
+          # because the cimg egress is direct, not via the CF tunnel).
+          org.gradle.java.installations.auto-download=true
           org.gradle.java.installations.auto-detect=true
           GRADLEPROPS
           echo "=== gradle.properties (Sutliff override) ==="
