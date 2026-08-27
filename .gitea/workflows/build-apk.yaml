@@ -1,0 +1,118 @@
+name: Build APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "sutliff/*"
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Build type"
+        required: false
+        default: "debug"
+        type: choice
+        options:
+          - debug
+          - release
+
+env:
+  # Reed's proven-safe gradle heap for homelab runner (3Gi, no daemon)
+  GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+  # Skip non-essential tasks to keep build time + memory in budget
+  SKIP_KTLINT: "true"
+
+jobs:
+  build:
+    runs-on: [android]
+    # 3Gi gradle heap is the safe upper limit for the wyse5070 worker
+    # (Reed: protect the 7.6Gi no-swap box — wedge was caused by -Xmx4g)
+    container:
+      image: cimg/android:2026.07-node
+      options: --user root
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Persist Gradle cache (worker side)
+        # The cimg container is ephemeral; cache lives in the DinD sidecar volume
+        # The runner-keeper pod mounts gradle-cache into /root/.gradle
+        run: |
+          if [ -d /root/.gradle/caches ]; then
+            echo "Gradle cache available ($(du -sh /root/.gradle | cut -f1))"
+          else
+            echo "Cold cache — first run will be slow (~20 min download)"
+          fi
+
+      - name: Write memory-capped gradle.properties
+        # Overwrite the upstream's -Xmx4g with Reed's proven-safe caps
+        run: |
+          cat > gradle.properties << 'EOF'
+          # Sutliff: memory-constrained build (wyse5070 has 7.6Gi no-swap)
+          # Reed's proven-safe cap: -Xmx3g
+          org.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC
+          org.gradle.daemon=false
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          org.gradle.configureondemand=true
+          org.gradle.caching=true
+          android.useAndroidX=true
+          # Network resilience (flaky egress through CF tunnel)
+          org.gradle.internal.http.connectionTimeout=30000
+          org.gradle.internal.http.socketTimeout=30000
+          org.gradle.internal.repository.max.retries=5
+          org.gradle.internal.repository.initial.backoff=1000
+          # Skip heavy checks
+          ktlint.disabled=true
+          # Match the runner image's preinstalled SDK
+          android.sdk.channel=0
+          # Java toolchain
+          org.gradle.java.installations.auto-download=false
+          org.gradle.java.installations.auto-detect=true
+          EOF
+          echo "=== gradle.properties (Sutliff override) ==="
+          cat gradle.properties | head -20
+
+      - name: Build APK
+        id: build
+        env:
+          # Match the cimg image's preinstalled SDK
+          ANDROID_SDK_ROOT: /opt/android-sdk
+          ANDROID_HOME: /opt/android-sdk
+        run: |
+          BUILD_TYPE=${GITHUB_EVENT_NAME == 'workflow_dispatch' && github.event.inputs.build_type || 'debug'}
+
+          echo "=== Building $BUILD_TYPE APK (gradle heap 3Gi, no daemon) ==="
+
+          # Use bash to capitalize first letter for assemble<BuildType>
+          TASK=$(echo "$BUILD_TYPE" | sed 's/^\(.\)/\U\1/')
+
+          ./gradlew --no-daemon \
+            :app:assemble${TASK} \
+            -Pandroid.useAndroidX=true \
+            -Pandroid.enableJetifier=false \
+            -x ktlintCheck \
+            -x ktlintMainSourceSetCheck \
+            -x ktlintTestSourceSetCheck \
+            -x lint \
+            -x lintAnalyzeDebug \
+            -x lintAnalyzeRelease \
+            -x test \
+            -x testDebugUnitTest \
+            -x testReleaseUnitTest \
+            --no-daemon \
+            --stacktrace 2>&1 | tail -40
+
+          echo "=== APK output ==="
+          find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha-android-${{ github.sha }}-apk
+          path: app/build/outputs/apk/**/*.apk
+          retention-days: 14
+          if-no-files-found: error

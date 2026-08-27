@@ -15,7 +15,7 @@ owner: sutliff
 icon_url: https://companion.home-assistant.io/images/icon.png
 
 # App name in the store
-display_name: Home Assistant
+display_name: Home Assistant (Sutliff)
 
 # Package identifier (matches AndroidManifest package)
 package_name: io.homeassistant.companion.android
@@ -26,8 +26,13 @@ version_strategy: git_tag
 
 # CI build triggers
 build_on:
-  - push_to_branches: [main, master]
+  - push_to_branches: [main, master, "sutliff/*"]
   - tag_pattern: "v*"
+
+# Subdomains this app needs CF Access tokens for
+# (resolved at runtime by MintClient — NO build-time embedding)
+subdomains:
+  - home.ffilt.us
 
 # Runtime requirements
 android:
