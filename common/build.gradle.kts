@@ -74,7 +74,7 @@ dependencies {
     lintChecks(libs.compose.lint.checks)
 
     // Sutliff: Cloudflare Access runtime token minting
-    implementation(libs.androidx.biometric)
+    implementation(libs.biometric)
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.datasource.okhttp)
