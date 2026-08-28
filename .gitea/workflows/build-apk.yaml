@@ -72,6 +72,8 @@ jobs:
           # because the cimg egress is direct, not via the CF tunnel).
           org.gradle.java.installations.auto-download=true
           org.gradle.java.installations.auto-detect=true
+          # Disable the screenshot test plugin (not needed for APK builds)
+          android.experimental.enableScreenshotTest=true
           GRADLEPROPS
           echo "=== gradle.properties (Sutliff override) ==="
           head -20 gradle.properties
