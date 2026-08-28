@@ -84,6 +84,7 @@ jobs:
           ANDROID_HOME: /opt/android-sdk
         run: |
           echo "=== Building debug APK (gradle heap 3Gi, no daemon) ==="
+          # Write full log to file first so we can always see the end of it
           ./gradlew --no-daemon \
             :app:assembleDebug \
             -Pandroid.useAndroidX=true \
@@ -96,10 +97,13 @@ jobs:
             -x lintAnalyzeRelease \
             -x test \
             -x testDebugUnitTest \
-            --stacktrace 2>&1 | tee /tmp/gradle-build.log | tail -100
+            --stacktrace 2>&1 | grep -v '^Downloading\|^Downloaded\|^Gradle Runtime Diagnostics' \
+            | tee /tmp/gradle-build.log
+          GRADLE_EXIT=$?
           echo ""
-          echo "=== ERROR CONTEXT (last 200 lines of full log) ==="
-          tail -200 /tmp/gradle-build.log | grep -E 'error|Error|FAILED|Could not|Caused|FAILURE' | head -30
+          echo "=== Gradle exit code: $GRADLE_EXIT ==="
+          echo "=== Last 30 lines of gradle output (where the error lives) ==="
+          tail -30 /tmp/gradle-build.log
           echo ""
           echo "=== APK output ==="
           find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
