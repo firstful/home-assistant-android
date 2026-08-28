@@ -96,7 +96,11 @@ jobs:
             -x lintAnalyzeRelease \
             -x test \
             -x testDebugUnitTest \
-            --stacktrace 2>&1 | tail -40
+            --stacktrace 2>&1 | tee /tmp/gradle-build.log | tail -100
+          echo ""
+          echo "=== ERROR CONTEXT (last 200 lines of full log) ==="
+          tail -200 /tmp/gradle-build.log | grep -E 'error|Error|FAILED|Could not|Caused|FAILURE' | head -30
+          echo ""
           echo "=== APK output ==="
           find app/build/outputs/apk -name "*.apk" -exec ls -lh {} \;
 
